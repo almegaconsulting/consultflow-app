@@ -1,30 +1,29 @@
 "use client";
-import InvoicesPanel from "../components/InvoicesPanel";
-import ConsultantsPanel from "../components/ConsultantsPanel";
-import ClientsPanel from "../components/ClientsPanel";
-import Dashboard from "../components/Dashboard";
-import {
-  card,
-  formBox,
-  input,
-  primaryButton,
-  table,
-  cell,
-  alertBox,
-} from "../styles/commonStyles";
+
+import { useEffect, useState } from "react";
+import jsPDF from "jspdf";
+
+import { supabase } from "../lib/supabaseClient";
+
 import type {
+  AIReport,
   Client,
   Consultant,
   Invoice,
-  PurchaseOrder,
   Project,
+  PurchaseOrder,
   Timesheet,
 } from "../types/consultflow";
+
 import Sidebar from "../components/Sidebar";
-import { useEffect, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import jsPDF from "jspdf";
-import { supabase } from "../lib/supabaseClient";
+import Dashboard from "../components/Dashboard";
+import ClientsPanel from "../components/ClientsPanel";
+import ConsultantsPanel from "../components/ConsultantsPanel";
+import InvoicesPanel from "../components/InvoicesPanel";
+import ProjectsPanel from "../components/ProjectsPanel";
+import TimesheetsPanel from "../components/TimesheetsPanel";
+import POsPanel from "../components/POsPanel";
+import AIAssistant from "../components/AIAssistant";
 
 const currency = "EUR";
 
@@ -32,9 +31,8 @@ function formatCurrency(value: number) {
   return new Intl.NumberFormat("es-ES", {
     style: "currency",
     currency,
-  }).format(value);
+  }).format(value || 0);
 }
-
 
 export default function Home() {
   const [clients, setClients] = useState<Client[]>([]);
@@ -43,6 +41,8 @@ export default function Home() {
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [timesheets, setTimesheets] = useState<Timesheet[]>([]);
+const [aiReports, setAiReports] = useState<AIReport[]>([]);
+
   const [activeMenu, setActiveMenu] = useState("dashboard");
 
   const [question, setQuestion] = useState("");
@@ -90,8 +90,8 @@ export default function Home() {
   const [timesheetMessage, setTimesheetMessage] = useState("");
 
   useEffect(() => {
-    loadAll();
-  }, []);
+  loadAll();
+}, []);
 
   async function loadAll() {
     const { data: clientsData } = await supabase
@@ -104,32 +104,37 @@ export default function Home() {
       .select("*")
       .order("created_at", { ascending: false });
 
-    const { data: inv } = await supabase
+    const { data: invoicesData } = await supabase
       .from("invoices")
       .select("*, clients(name)")
       .order("issue_date", { ascending: false });
 
-    const { data: po } = await supabase
+    const { data: purchaseOrdersData } = await supabase
       .from("purchase_orders")
       .select("*, clients(name), projects(name)")
       .order("created_at", { ascending: false });
 
-    const { data: proj } = await supabase
+    const { data: projectsData } = await supabase
       .from("projects")
       .select("*, clients(name), consultants(full_name)")
       .order("created_at", { ascending: false });
 
-    const { data: ts } = await supabase
+    const { data: timesheetsData } = await supabase
       .from("timesheets")
       .select("*, clients(name), projects(name), consultants(full_name)")
       .order("work_date", { ascending: false });
+const { data: aiReportsData } = await supabase
+  .from("ai_reports")
+  .select("*")
+  .order("created_at", { ascending: false });
 
     setClients((clientsData || []) as Client[]);
     setConsultants((consultantsData || []) as Consultant[]);
-    setInvoices((inv || []) as Invoice[]);
-    setPurchaseOrders((po || []) as PurchaseOrder[]);
-    setProjects((proj || []) as Project[]);
-    setTimesheets((ts || []) as Timesheet[]);
+    setInvoices((invoicesData || []) as Invoice[]);
+    setPurchaseOrders((purchaseOrdersData || []) as PurchaseOrder[]);
+    setProjects((projectsData || []) as Project[]);
+    setTimesheets((timesheetsData || []) as Timesheet[]);
+setAiReports((aiReportsData || []) as AIReport[]);
   }
 
   async function getFirstCompanyId() {
@@ -145,11 +150,16 @@ export default function Home() {
   async function createClient() {
     setClientMessage("");
 
+    if (!newClientName.trim()) {
+      setClientMessage("El nombre del cliente es obligatorio.");
+      return;
+    }
+
     const companyId = await getFirstCompanyId();
 
     const { error } = await supabase.from("clients").insert({
       company_id: companyId,
-      name: newClientName,
+      name: newClientName.trim(),
       status: "active",
     });
 
@@ -166,14 +176,24 @@ export default function Home() {
   async function createConsultant() {
     setConsultantMessage("");
 
+    if (!consultantName.trim()) {
+      setConsultantMessage("El nombre del consultor es obligatorio.");
+      return;
+    }
+
+    if (!consultantEmail.trim()) {
+      setConsultantMessage("El email es obligatorio.");
+      return;
+    }
+
     const companyId = await getFirstCompanyId();
 
     const { error } = await supabase.from("consultants").insert({
       company_id: companyId,
-      full_name: consultantName,
-      email: consultantEmail,
-      profile: consultantProfile,
-      cost_day_rate: Number(consultantRate),
+      full_name: consultantName.trim(),
+      email: consultantEmail.trim(),
+      profile: consultantProfile.trim(),
+      cost_day_rate: Number(consultantRate || 0),
       status: "active",
     });
 
@@ -210,7 +230,6 @@ export default function Home() {
 
     const companyId = await getFirstCompanyId();
 
-    const selectedClient = clients.find((c) => c.id === projectClientId);
     const selectedConsultant = consultants.find(
       (c) => c.id === projectConsultantId
     );
@@ -221,7 +240,7 @@ export default function Home() {
       consultant_id: projectConsultantId,
       name: projectName.trim(),
       status: "active",
-      sell_day_rate: Number(projectSellRate),
+      sell_day_rate: Number(projectSellRate || 0),
       cost_day_rate:
         Number(projectCostRate) ||
         Number(selectedConsultant?.cost_day_rate || 0),
@@ -233,10 +252,7 @@ export default function Home() {
       return;
     }
 
-    setProjectMessage(
-      `Proyecto creado correctamente para ${selectedClient?.name || "cliente"}.`
-    );
-
+    setProjectMessage("Proyecto creado correctamente.");
     setProjectName("");
     setProjectClientId("");
     setProjectConsultantId("");
@@ -365,19 +381,7 @@ export default function Home() {
 
     loadAll();
   }
-async function updateTimesheetStatus(timesheetId: string, newStatus: string) {
-  const { error } = await supabase
-    .from("timesheets")
-    .update({ status: newStatus })
-    .eq("id", timesheetId);
 
-  if (error) {
-    alert(error.message);
-    return;
-  }
-
-  loadAll();
-}
   async function createTimesheet() {
     setTimesheetMessage("");
 
@@ -430,6 +434,20 @@ async function updateTimesheetStatus(timesheetId: string, newStatus: string) {
     loadAll();
   }
 
+  async function updateTimesheetStatus(timesheetId: string, newStatus: string) {
+    const { error } = await supabase
+      .from("timesheets")
+      .update({ status: newStatus })
+      .eq("id", timesheetId);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    loadAll();
+  }
+
   function getConsumedAmount(poId: string) {
     return invoices
       .filter((i) => i.purchase_order_id === poId)
@@ -440,30 +458,32 @@ async function updateTimesheetStatus(timesheetId: string, newStatus: string) {
     return po.total_amount - getConsumedAmount(po.id);
   }
 
-  function getProjectRevenue(id: string) {
+  function getProjectRevenue(projectId: string) {
     return invoices
-      .filter((i) => i.project_id === id)
+      .filter((i) => i.project_id === projectId)
       .reduce((a, b) => a + b.total_amount, 0);
   }
 
-  function getProjectDays(id: string) {
+  function getProjectDays(projectId: string) {
     return timesheets
-      .filter((t) => t.project_id === id)
+      .filter((t) => t.project_id === projectId)
       .reduce((a, b) => a + b.billable_days, 0);
   }
 
-  function getProjectCost(p: Project) {
-    return getProjectDays(p.id) * p.cost_day_rate;
+  function getProjectCost(project: Project) {
+    return getProjectDays(project.id) * project.cost_day_rate;
   }
 
-  function getMargin(p: Project) {
-    return getProjectRevenue(p.id) - getProjectCost(p);
+  function getMargin(project: Project) {
+    return getProjectRevenue(project.id) - getProjectCost(project);
   }
 
-  function getMarginPct(p: Project) {
-    const rev = getProjectRevenue(p.id);
-    if (rev === 0) return 0;
-    return (getMargin(p) / rev) * 100;
+  function getMarginPct(project: Project) {
+    const revenue = getProjectRevenue(project.id);
+
+    if (revenue === 0) return 0;
+
+    return (getMargin(project) / revenue) * 100;
   }
 
   async function askAI() {
@@ -479,513 +499,206 @@ async function updateTimesheetStatus(timesheetId: string, newStatus: string) {
       }),
     });
 
-    const data = await res.json();
-    setAiResponse(data.answer || data.error);
+    const aiData = await res.json();
+    const answer = aiData.answer || aiData.error || "Sin respuesta de IA";
+
+    setAiResponse(answer);
+
+    const companyId = await getFirstCompanyId();
+
+    await supabase.from("ai_reports").insert({
+      company_id: companyId,
+      question,
+      answer,
+    });
   }
 
   function exportPDF() {
     const doc = new jsPDF();
-    doc.text("ConsultFlow AI Report", 20, 20);
-    const lines = doc.splitTextToSize(aiResponse, 170);
-    doc.text(lines, 20, 40);
-    doc.save("consultflow-report.pdf");
+
+    doc.setFontSize(18);
+    doc.text("ConsultFlow - Informe IA", 15, 20);
+
+    doc.setFontSize(11);
+    doc.text(`Fecha: ${new Date().toLocaleDateString("es-ES")}`, 15, 30);
+
+    doc.setFontSize(12);
+
+    const text = aiResponse || "No hay informe generado todavía.";
+    const lines = doc.splitTextToSize(text, 180);
+
+    let y = 45;
+
+    lines.forEach((line: string) => {
+      if (y > 280) {
+        doc.addPage();
+        y = 20;
+      }
+
+      doc.text(line, 15, y);
+      y += 7;
+    });
+
+    doc.save("consultflow-informe-ia.pdf");
   }
-
-  const totalFacturado = invoices.reduce((a, b) => a + b.total_amount, 0);
-  const totalPOs = purchaseOrders.reduce((a, b) => a + b.total_amount, 0);
-  const totalDias = timesheets.reduce((a, b) => a + b.billable_days, 0);
-
-  const overdueInvoices = invoices.filter((i) => i.status === "overdue");
-  const pendingTimesheets = timesheets.filter((t) => t.status === "submitted");
-
-  const lowMarginProjects = projects.filter((p) => {
-    const revenue = getProjectRevenue(p.id);
-    if (revenue === 0) return false;
-    return getMarginPct(p) < 20;
-  });
-
-  const almostConsumedPOs = purchaseOrders.filter((po) => {
-    const consumed = getConsumedAmount(po.id);
-    if (po.total_amount === 0) return false;
-    return (consumed / po.total_amount) * 100 >= 80;
-  });
 
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
-      <Sidebar
-  activeMenu={activeMenu}
-  setActiveMenu={setActiveMenu}
-/>
+      <Sidebar activeMenu={activeMenu} setActiveMenu={setActiveMenu} />
+
       <main style={{ flex: 1, padding: 30 }}>
         {activeMenu === "dashboard" && (
-  <Dashboard
-    clients={clients}
-    consultants={consultants}
-    invoices={invoices}
-    purchaseOrders={purchaseOrders}
-    projects={projects}
-    timesheets={timesheets}
-    formatCurrency={formatCurrency}
-    getConsumedAmount={getConsumedAmount}
-    getProjectRevenue={getProjectRevenue}
-    getMarginPct={getMarginPct}
-  />
-)}
+          <Dashboard
+            clients={clients}
+            consultants={consultants}
+            invoices={invoices}
+            purchaseOrders={purchaseOrders}
+            projects={projects}
+            timesheets={timesheets}
+            formatCurrency={formatCurrency}
+            getConsumedAmount={getConsumedAmount}
+            getProjectRevenue={getProjectRevenue}
+            getMarginPct={getMarginPct}
+          />
+        )}
 
         {activeMenu === "clientes" && (
-  <ClientsPanel
-    clients={clients}
-    newClientName={newClientName}
-    setNewClientName={setNewClientName}
-    createClient={createClient}
-    clientMessage={clientMessage}
-  />
-)}
+          <ClientsPanel
+            clients={clients}
+            newClientName={newClientName}
+            setNewClientName={setNewClientName}
+            createClient={createClient}
+            clientMessage={clientMessage}
+          />
+        )}
 
         {activeMenu === "consultores" && (
-  <ConsultantsPanel
-    consultants={consultants}
-    consultantName={consultantName}
-    setConsultantName={setConsultantName}
-    consultantEmail={consultantEmail}
-    setConsultantEmail={setConsultantEmail}
-    consultantProfile={consultantProfile}
-    setConsultantProfile={setConsultantProfile}
-    consultantRate={consultantRate}
-    setConsultantRate={setConsultantRate}
-    createConsultant={createConsultant}
-    consultantMessage={consultantMessage}
-    formatCurrency={formatCurrency}
-  />
-)}
+          <ConsultantsPanel
+            consultants={consultants}
+            consultantName={consultantName}
+            setConsultantName={setConsultantName}
+            consultantEmail={consultantEmail}
+            setConsultantEmail={setConsultantEmail}
+            consultantProfile={consultantProfile}
+            setConsultantProfile={setConsultantProfile}
+            consultantRate={consultantRate}
+            setConsultantRate={setConsultantRate}
+            createConsultant={createConsultant}
+            consultantMessage={consultantMessage}
+            formatCurrency={formatCurrency}
+          />
+        )}
 
         {activeMenu === "facturas" && (
-  <InvoicesPanel
-    invoices={invoices}
-    projects={projects}
-    purchaseOrders={purchaseOrders}
-    invoiceNumber={invoiceNumber}
-    setInvoiceNumber={setInvoiceNumber}
-    invoiceProjectId={invoiceProjectId}
-    setInvoiceProjectId={setInvoiceProjectId}
-    invoicePOId={invoicePOId}
-    setInvoicePOId={setInvoicePOId}
-    invoiceAmount={invoiceAmount}
-    setInvoiceAmount={setInvoiceAmount}
-    invoiceTaxAmount={invoiceTaxAmount}
-    setInvoiceTaxAmount={setInvoiceTaxAmount}
-    invoiceDueDate={invoiceDueDate}
-    setInvoiceDueDate={setInvoiceDueDate}
-    invoiceStatus={invoiceStatus}
-    setInvoiceStatus={setInvoiceStatus}
-    createInvoice={createInvoice}
-    updateInvoiceStatus={updateInvoiceStatus}
-    invoiceMessage={invoiceMessage}
-    formatCurrency={formatCurrency}
-  />
-)}
+          <InvoicesPanel
+            invoices={invoices}
+            projects={projects}
+            purchaseOrders={purchaseOrders}
+            invoiceNumber={invoiceNumber}
+            setInvoiceNumber={setInvoiceNumber}
+            invoiceProjectId={invoiceProjectId}
+            setInvoiceProjectId={setInvoiceProjectId}
+            invoicePOId={invoicePOId}
+            setInvoicePOId={setInvoicePOId}
+            invoiceAmount={invoiceAmount}
+            setInvoiceAmount={setInvoiceAmount}
+            invoiceTaxAmount={invoiceTaxAmount}
+            setInvoiceTaxAmount={setInvoiceTaxAmount}
+            invoiceDueDate={invoiceDueDate}
+            setInvoiceDueDate={setInvoiceDueDate}
+            invoiceStatus={invoiceStatus}
+            setInvoiceStatus={setInvoiceStatus}
+            createInvoice={createInvoice}
+            updateInvoiceStatus={updateInvoiceStatus}
+            invoiceMessage={invoiceMessage}
+            formatCurrency={formatCurrency}
+          />
+        )}
 
         {activeMenu === "pos" && (
-          <>
-            <h1>POs</h1>
-
-            <div style={formBox}>
-              <h3>Crear nueva PO</h3>
-
-              <input
-                value={poNumber}
-                onChange={(e) => setPoNumber(e.target.value)}
-                placeholder="Número PO"
-                style={input}
-              />
-
-              <select
-                value={poProjectId}
-                onChange={(e) => setPoProjectId(e.target.value)}
-                style={input}
-              >
-                <option value="">Selecciona proyecto</option>
-                {projects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.name}
-                  </option>
-                ))}
-              </select>
-
-              <input
-                value={poTotalAmount}
-                onChange={(e) => setPoTotalAmount(e.target.value)}
-                placeholder="Importe total PO"
-                style={input}
-              />
-
-              <input
-                type="date"
-                value={poStartDate}
-                onChange={(e) => setPoStartDate(e.target.value)}
-                style={input}
-              />
-
-              <input
-                type="date"
-                value={poEndDate}
-                onChange={(e) => setPoEndDate(e.target.value)}
-                style={input}
-              />
-
-              <select
-                value={poStatus}
-                onChange={(e) => setPoStatus(e.target.value)}
-                style={input}
-              >
-                <option value="active">active</option>
-                <option value="pending">pending</option>
-                <option value="almost_used">almost_used</option>
-                <option value="closed">closed</option>
-              </select>
-
-              <button onClick={createPurchaseOrder} style={primaryButton}>
-                Crear PO
-              </button>
-
-              <p>{poMessage}</p>
-            </div>
-
-            <table style={table}>
-              <thead>
-                <tr>
-                  <th style={cell}>Cliente</th>
-                  <th style={cell}>Proyecto</th>
-                  <th style={cell}>PO</th>
-                  <th style={cell}>Total</th>
-                  <th style={cell}>Consumido</th>
-                  <th style={cell}>Restante</th>
-                  <th style={cell}>Inicio</th>
-                  <th style={cell}>Fin</th>
-                  <th style={cell}>Estado</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {purchaseOrders.map((po) => (
-                  <tr key={po.id}>
-                    <td style={cell}>{po.clients?.name || "Sin cliente"}</td>
-                    <td style={cell}>{po.projects?.name || "Sin proyecto"}</td>
-                    <td style={cell}>{po.po_number}</td>
-                    <td style={cell}>{formatCurrency(po.total_amount)}</td>
-                    <td style={cell}>{formatCurrency(getConsumedAmount(po.id))}</td>
-                    <td style={cell}>{formatCurrency(getRemainingAmount(po))}</td>
-                    <td style={cell}>{po.start_date || "-"}</td>
-                    <td style={cell}>{po.end_date || "-"}</td>
-                    <td style={cell}>{po.status}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </>
+          <POsPanel
+            purchaseOrders={purchaseOrders}
+            projects={projects}
+            poNumber={poNumber}
+            setPoNumber={setPoNumber}
+            poProjectId={poProjectId}
+            setPoProjectId={setPoProjectId}
+            poTotalAmount={poTotalAmount}
+            setPoTotalAmount={setPoTotalAmount}
+            poStartDate={poStartDate}
+            setPoStartDate={setPoStartDate}
+            poEndDate={poEndDate}
+            setPoEndDate={setPoEndDate}
+            poStatus={poStatus}
+            setPoStatus={setPoStatus}
+            createPurchaseOrder={createPurchaseOrder}
+            poMessage={poMessage}
+            formatCurrency={formatCurrency}
+            getConsumedAmount={getConsumedAmount}
+            getRemainingAmount={getRemainingAmount}
+          />
         )}
 
         {activeMenu === "proyectos" && (
-          <>
-            <h1>Proyectos</h1>
-
-            <div style={formBox}>
-              <h3>Crear nuevo proyecto</h3>
-
-              <input
-                value={projectName}
-                onChange={(e) => setProjectName(e.target.value)}
-                placeholder="Nombre del proyecto"
-                style={input}
-              />
-
-              <select
-                value={projectClientId}
-                onChange={(e) => setProjectClientId(e.target.value)}
-                style={input}
-              >
-                <option value="">Selecciona cliente</option>
-                {clients.map((client) => (
-                  <option key={client.id} value={client.id}>
-                    {client.name}
-                  </option>
-                ))}
-              </select>
-
-              <select
-                value={projectConsultantId}
-                onChange={(e) => {
-                  const consultantId = e.target.value;
-                  setProjectConsultantId(consultantId);
-
-                  const selected = consultants.find(
-                    (c) => c.id === consultantId
-                  );
-
-                  if (selected?.cost_day_rate) {
-                    setProjectCostRate(String(selected.cost_day_rate));
-                  }
-                }}
-                style={input}
-              >
-                <option value="">Selecciona consultor</option>
-                {consultants.map((consultant) => (
-                  <option key={consultant.id} value={consultant.id}>
-                    {consultant.full_name}
-                  </option>
-                ))}
-              </select>
-
-              <input
-                value={projectSellRate}
-                onChange={(e) => setProjectSellRate(e.target.value)}
-                placeholder="Tarifa venta día"
-                style={input}
-              />
-
-              <input
-                value={projectCostRate}
-                onChange={(e) => setProjectCostRate(e.target.value)}
-                placeholder="Tarifa coste día"
-                style={input}
-              />
-
-              <button onClick={createProject} style={primaryButton}>
-                Crear proyecto
-              </button>
-
-              <p>{projectMessage}</p>
-            </div>
-
-            <table style={table}>
-              <thead>
-                <tr>
-                  <th style={cell}>Cliente</th>
-                  <th style={cell}>Proyecto</th>
-                  <th style={cell}>Consultor</th>
-                  <th style={cell}>Venta día</th>
-                  <th style={cell}>Coste día</th>
-                  <th style={cell}>Ingresos</th>
-                  <th style={cell}>Coste</th>
-                  <th style={cell}>Margen</th>
-                  <th style={cell}>Margen %</th>
-                  <th style={cell}>Estado</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {projects.map((p) => (
-                  <tr key={p.id}>
-                    <td style={cell}>{p.clients?.name || "Sin cliente"}</td>
-                    <td style={cell}>{p.name}</td>
-                    <td style={cell}>
-                      {p.consultants?.full_name || "Sin consultor"}
-                    </td>
-                    <td style={cell}>{formatCurrency(p.sell_day_rate || 0)}</td>
-                    <td style={cell}>{formatCurrency(p.cost_day_rate || 0)}</td>
-                    <td style={cell}>{formatCurrency(getProjectRevenue(p.id))}</td>
-                    <td style={cell}>{formatCurrency(getProjectCost(p))}</td>
-                    <td style={cell}>{formatCurrency(getMargin(p))}</td>
-                    <td style={cell}>{getMarginPct(p).toFixed(2)}%</td>
-                    <td style={cell}>{p.status}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </>
+          <ProjectsPanel
+            clients={clients}
+            consultants={consultants}
+            projects={projects}
+            projectName={projectName}
+            setProjectName={setProjectName}
+            projectClientId={projectClientId}
+            setProjectClientId={setProjectClientId}
+            projectConsultantId={projectConsultantId}
+            setProjectConsultantId={setProjectConsultantId}
+            projectSellRate={projectSellRate}
+            setProjectSellRate={setProjectSellRate}
+            projectCostRate={projectCostRate}
+            setProjectCostRate={setProjectCostRate}
+            createProject={createProject}
+            projectMessage={projectMessage}
+            formatCurrency={formatCurrency}
+            getProjectRevenue={getProjectRevenue}
+            getProjectCost={getProjectCost}
+            getMargin={getMargin}
+            getMarginPct={getMarginPct}
+          />
         )}
 
         {activeMenu === "timesheets" && (
-          <>
-            <h1>Timesheets</h1>
-
-            <div style={formBox}>
-              <h3>Crear nuevo timesheet</h3>
-
-              <select
-                value={timesheetProjectId}
-                onChange={(e) => {
-                  const projectId = e.target.value;
-                  setTimesheetProjectId(projectId);
-
-                  const selectedProject = projects.find(
-                    (p) => p.id === projectId
-                  );
-
-                  if (selectedProject?.consultant_id) {
-                    setTimesheetConsultantId(selectedProject.consultant_id);
-                  }
-                }}
-                style={input}
-              >
-                <option value="">Selecciona proyecto</option>
-                {projects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.name}
-                  </option>
-                ))}
-              </select>
-
-              <select
-                value={timesheetConsultantId}
-                onChange={(e) => setTimesheetConsultantId(e.target.value)}
-                style={input}
-              >
-                <option value="">Selecciona consultor</option>
-                {consultants.map((consultant) => (
-                  <option key={consultant.id} value={consultant.id}>
-                    {consultant.full_name}
-                  </option>
-                ))}
-              </select>
-
-              <input
-                type="date"
-                value={timesheetDate}
-                onChange={(e) => setTimesheetDate(e.target.value)}
-                style={input}
-              />
-
-              <input
-                value={timesheetHours}
-                onChange={(e) => setTimesheetHours(e.target.value)}
-                placeholder="Horas"
-                style={input}
-              />
-
-              <input
-                value={timesheetDays}
-                onChange={(e) => setTimesheetDays(e.target.value)}
-                placeholder="Días facturables"
-                style={input}
-              />
-
-              <select
-                value={timesheetStatus}
-                onChange={(e) => setTimesheetStatus(e.target.value)}
-                style={input}
-              >
-                <option value="draft">draft</option>
-                <option value="submitted">submitted</option>
-                <option value="approved">approved</option>
-                <option value="rejected">rejected</option>
-                <option value="invoiced">invoiced</option>
-              </select>
-
-              <button onClick={createTimesheet} style={primaryButton}>
-                Crear timesheet
-              </button>
-
-              <p>{timesheetMessage}</p>
-            </div>
-
-            <table style={table}>
-              <thead>
-                <tr>
-                  <th style={cell}>Fecha</th>
-                  <th style={cell}>Cliente</th>
-                  <th style={cell}>Proyecto</th>
-                  <th style={cell}>Consultor</th>
-                  <th style={cell}>Horas</th>
-                  <th style={cell}>Días</th>
-                  <th style={cell}>Estado</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {timesheets.map((t) => (
-                  <tr key={t.id}>
-                    <td style={cell}>{t.work_date}</td>
-                    <td style={cell}>{t.clients?.name || "Sin cliente"}</td>
-                    <td style={cell}>{t.projects?.name || "Sin proyecto"}</td>
-                    <td style={cell}>
-                      {t.consultants?.full_name || "Sin consultor"}
-                    </td>
-                    <td style={cell}>{t.hours}</td>
-                    <td style={cell}>{t.billable_days}</td>
-                    <td style={cell}>
-  <select
-    value={t.status}
-    onChange={(e) => updateTimesheetStatus(t.id, e.target.value)}
-    style={{
-      padding: 6,
-      fontWeight: "bold",
-      color:
-        t.status === "approved"
-          ? "green"
-          : t.status === "submitted"
-          ? "orange"
-          : t.status === "rejected"
-          ? "red"
-          : "black",
-    }}
-  >
-    <option value="draft">draft</option>
-    <option value="submitted">submitted</option>
-    <option value="approved">approved</option>
-    <option value="rejected">rejected</option>
-    <option value="invoiced">invoiced</option>
-  </select>
-</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </>
+          <TimesheetsPanel
+            timesheets={timesheets}
+            projects={projects}
+            consultants={consultants}
+            timesheetProjectId={timesheetProjectId}
+            setTimesheetProjectId={setTimesheetProjectId}
+            timesheetConsultantId={timesheetConsultantId}
+            setTimesheetConsultantId={setTimesheetConsultantId}
+            timesheetDate={timesheetDate}
+            setTimesheetDate={setTimesheetDate}
+            timesheetHours={timesheetHours}
+            setTimesheetHours={setTimesheetHours}
+            timesheetDays={timesheetDays}
+            setTimesheetDays={setTimesheetDays}
+            timesheetStatus={timesheetStatus}
+            setTimesheetStatus={setTimesheetStatus}
+            createTimesheet={createTimesheet}
+            updateTimesheetStatus={updateTimesheetStatus}
+            timesheetMessage={timesheetMessage}
+          />
         )}
 
         {activeMenu === "ia" && (
-          <>
-            <h1>ConsultFlow AI</h1>
-
-            <input
-              value={question}
-              onChange={(e) => setQuestion(e.target.value)}
-              placeholder="Pregunta..."
-              style={{ width: "60%", padding: 10 }}
-            />
-
-            <button
-              onClick={askAI}
-              style={{ marginLeft: 10, padding: "10px 15px" }}
-            >
-              Preguntar
-            </button>
-
-            {aiResponse && (
-              <>
-                <button
-                  onClick={exportPDF}
-                  style={{
-                    marginTop: 20,
-                    padding: "10px 15px",
-                    background: "#16a34a",
-                    color: "white",
-                    border: "none",
-                    borderRadius: 6,
-                    cursor: "pointer",
-                  }}
-                >
-                  Exportar PDF
-                </button>
-
-                <div
-                  style={{
-                    marginTop: 20,
-                    padding: 20,
-                    background: "white",
-                    border: "1px solid #ddd",
-                    borderRadius: 8,
-                  }}
-                >
-                  <ReactMarkdown>{aiResponse}</ReactMarkdown>
-                </div>
-              </>
-            )}
-          </>
+          <AIAssistant
+  question={question}
+  setQuestion={setQuestion}
+  aiResponse={aiResponse}
+  setAiResponse={setAiResponse}
+  aiReports={aiReports}
+  askAI={askAI}
+  exportPDF={exportPDF}
+/>
         )}
       </main>
     </div>
   );
 }
-

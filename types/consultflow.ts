@@ -63,3 +63,11 @@ export type Timesheet = {
   projects: { name: string } | null;
   consultants: { full_name: string } | null;
 };
+
+export type AIReport = {
+  id: string;
+  company_id: string | null;
+  question: string;
+  answer: string;
+  created_at: string;
+};
