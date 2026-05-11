@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import jsPDF from "jspdf";
+import { translations, Language } from "../i18n/translations";
 
 import { supabase } from "../lib/supabaseClient";
 
@@ -44,6 +45,8 @@ export default function Home() {
 const [aiReports, setAiReports] = useState<AIReport[]>([]);
 
   const [activeMenu, setActiveMenu] = useState("dashboard");
+const [language, setLanguage] = useState<Language>("es");
+const t = translations[language];
 
   const [question, setQuestion] = useState("");
   const [aiResponse, setAiResponse] = useState("");
@@ -487,31 +490,93 @@ setAiReports((aiReportsData || []) as AIReport[]);
   }
 
   async function askAI() {
-    const res = await fetch("/api/ask-ai", {
-      method: "POST",
-      body: JSON.stringify({
-        question,
-        currency,
-        invoices,
-        purchaseOrders,
-        projects,
-        timesheets,
-      }),
-    });
+  const totalBilled = invoices.reduce(
+    (sum, i) => sum + (i.total_amount || 0),
+    0
+  );
 
-    const aiData = await res.json();
-    const answer = aiData.answer || aiData.error || "Sin respuesta de IA";
+  const overdueInvoices = invoices.filter(
+    (i) => i.status === "overdue"
+  );
 
-    setAiResponse(answer);
+  const pendingInvoices = invoices.filter(
+    (i) => i.status === "pending"
+  );
 
-    const companyId = await getFirstCompanyId();
+  const totalPOs = purchaseOrders.reduce(
+    (sum, p) => sum + (p.total_amount || 0),
+    0
+  );
 
-    await supabase.from("ai_reports").insert({
-      company_id: companyId,
-      question,
-      answer,
-    });
-  }
+  const consumedPOs = purchaseOrders.map((po) => ({
+    po: po.po_number,
+    consumed: getConsumedAmount(po.id),
+    total: po.total_amount,
+    pct:
+      po.total_amount > 0
+        ? (
+            (getConsumedAmount(po.id) /
+              po.total_amount) *
+            100
+          ).toFixed(2)
+        : "0",
+  }));
+
+  const lowMarginProjects = projects.map((p) => ({
+    project: p.name,
+    marginPct: getMarginPct(p),
+  }));
+
+  const pendingTimesheets = timesheets.filter(
+    (t) => t.status === "submitted"
+  );
+
+  const payload = {
+  question,
+  currency,
+
+  invoices,
+  purchaseOrders,
+  projects,
+  timesheets,
+
+  kpis: {
+    totalBilled,
+    totalPOs,
+    overdueInvoices: overdueInvoices.length,
+    pendingInvoices: pendingInvoices.length,
+    pendingTimesheets: pendingTimesheets.length,
+  },
+
+  alerts: {
+    overdueInvoices,
+    pendingInvoices,
+    pendingTimesheets,
+    lowMarginProjects,
+    consumedPOs,
+  },
+};
+
+  const res = await fetch("/api/ask-ai", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await res.json();
+
+  setAiResponse(data.answer || data.error);
+
+  await supabase.from("ai_reports").insert({
+  company_id: await getFirstCompanyId(),
+  question,
+  answer: data.answer || data.error,
+});
+
+  loadAll();
+}
 
   function exportPDF() {
     const doc = new jsPDF();
@@ -544,7 +609,13 @@ setAiReports((aiReportsData || []) as AIReport[]);
 
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
-      <Sidebar activeMenu={activeMenu} setActiveMenu={setActiveMenu} />
+      <Sidebar
+  activeMenu={activeMenu}
+  setActiveMenu={setActiveMenu}
+  language={language}
+  setLanguage={setLanguage}
+  t={t}
+/>
 
       <main style={{ flex: 1, padding: 30 }}>
         {activeMenu === "dashboard" && (
@@ -559,17 +630,19 @@ setAiReports((aiReportsData || []) as AIReport[]);
             getConsumedAmount={getConsumedAmount}
             getProjectRevenue={getProjectRevenue}
             getMarginPct={getMarginPct}
+	    t={t}
           />
         )}
 
         {activeMenu === "clientes" && (
           <ClientsPanel
-            clients={clients}
-            newClientName={newClientName}
-            setNewClientName={setNewClientName}
-            createClient={createClient}
-            clientMessage={clientMessage}
-          />
+  clients={clients}
+  newClientName={newClientName}
+  setNewClientName={setNewClientName}
+  createClient={createClient}
+  clientMessage={clientMessage}
+  t={t}
+/>
         )}
 
         {activeMenu === "consultores" && (
@@ -586,6 +659,7 @@ setAiReports((aiReportsData || []) as AIReport[]);
             createConsultant={createConsultant}
             consultantMessage={consultantMessage}
             formatCurrency={formatCurrency}
+	    t={t}
           />
         )}
 
@@ -612,6 +686,7 @@ setAiReports((aiReportsData || []) as AIReport[]);
             updateInvoiceStatus={updateInvoiceStatus}
             invoiceMessage={invoiceMessage}
             formatCurrency={formatCurrency}
+	    t={t}
           />
         )}
 
@@ -636,6 +711,7 @@ setAiReports((aiReportsData || []) as AIReport[]);
             formatCurrency={formatCurrency}
             getConsumedAmount={getConsumedAmount}
             getRemainingAmount={getRemainingAmount}
+	    t={t}
           />
         )}
 
@@ -661,6 +737,7 @@ setAiReports((aiReportsData || []) as AIReport[]);
             getProjectCost={getProjectCost}
             getMargin={getMargin}
             getMarginPct={getMarginPct}
+	    t={t}
           />
         )}
 
@@ -684,6 +761,7 @@ setAiReports((aiReportsData || []) as AIReport[]);
             createTimesheet={createTimesheet}
             updateTimesheetStatus={updateTimesheetStatus}
             timesheetMessage={timesheetMessage}
+	    t={t}
           />
         )}
 
@@ -696,6 +774,7 @@ setAiReports((aiReportsData || []) as AIReport[]);
   aiReports={aiReports}
   askAI={askAI}
   exportPDF={exportPDF}
+  t={t}
 />
         )}
       </main>

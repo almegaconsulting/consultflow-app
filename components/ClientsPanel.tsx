@@ -1,5 +1,7 @@
 import type { Client } from "../types/consultflow";
 
+import type { Translation } from "../i18n/translations";
+
 import {
   cell,
   formBox,
@@ -10,10 +12,15 @@ import {
 
 type ClientsPanelProps = {
   clients: Client[];
+
   newClientName: string;
   setNewClientName: (value: string) => void;
+
   createClient: () => void;
+
   clientMessage: string;
+
+  t: Translation;
 };
 
 export default function ClientsPanel({
@@ -22,39 +29,42 @@ export default function ClientsPanel({
   setNewClientName,
   createClient,
   clientMessage,
+  t,
 }: ClientsPanelProps) {
   return (
     <>
-      <h1>Clientes</h1>
+      <h1>{t.clients}</h1>
 
       <div style={formBox}>
         <input
           value={newClientName}
           onChange={(e) => setNewClientName(e.target.value)}
-          placeholder="Nombre cliente"
+          placeholder={t.clientName}
           style={input}
         />
 
         <button onClick={createClient} style={primaryButton}>
-          Crear cliente
+          {t.createClient}
         </button>
-
-        <p>{clientMessage}</p>
       </div>
+
+      {clientMessage && (
+        <p style={{ marginBottom: 20 }}>{clientMessage}</p>
+      )}
 
       <table style={table}>
         <thead>
           <tr>
-            <th style={cell}>Nombre</th>
-            <th style={cell}>Estado</th>
+            <th style={cell}>{t.name}</th>
+            <th style={cell}>{t.status}</th>
           </tr>
         </thead>
 
         <tbody>
-          {clients.map((c) => (
-            <tr key={c.id}>
-              <td style={cell}>{c.name}</td>
-              <td style={cell}>{c.status}</td>
+          {clients.map((client) => (
+            <tr key={client.id}>
+              <td style={cell}>{client.name}</td>
+              <td style={cell}>{client.status}</td>
             </tr>
           ))}
         </tbody>

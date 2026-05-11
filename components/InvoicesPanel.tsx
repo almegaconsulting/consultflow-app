@@ -1,4 +1,5 @@
 import type { Invoice, Project, PurchaseOrder } from "../types/consultflow";
+import type { Translation } from "../i18n/translations";
 
 import {
   cell,
@@ -39,6 +40,8 @@ type InvoicesPanelProps = {
 
   invoiceMessage: string;
   formatCurrency: (value: number) => string;
+
+  t: Translation;
 };
 
 export default function InvoicesPanel({
@@ -63,18 +66,19 @@ export default function InvoicesPanel({
   updateInvoiceStatus,
   invoiceMessage,
   formatCurrency,
+  t,
 }: InvoicesPanelProps) {
   return (
     <>
-      <h1>Facturas</h1>
+      <h1>{t.invoices}</h1>
 
       <div style={formBox}>
-        <h3>Crear nueva factura</h3>
+        <h3>{t.createNewInvoice}</h3>
 
         <input
           value={invoiceNumber}
           onChange={(e) => setInvoiceNumber(e.target.value)}
-          placeholder="Número factura"
+          placeholder={t.invoiceNumber}
           style={input}
         />
 
@@ -83,7 +87,7 @@ export default function InvoicesPanel({
           onChange={(e) => setInvoiceProjectId(e.target.value)}
           style={input}
         >
-          <option value="">Selecciona proyecto</option>
+          <option value="">{t.selectProject}</option>
           {projects.map((project) => (
             <option key={project.id} value={project.id}>
               {project.name}
@@ -96,7 +100,7 @@ export default function InvoicesPanel({
           onChange={(e) => setInvoicePOId(e.target.value)}
           style={input}
         >
-          <option value="">Sin PO</option>
+          <option value="">{t.withoutPO}</option>
           {purchaseOrders.map((po) => (
             <option key={po.id} value={po.id}>
               {po.po_number}
@@ -107,14 +111,16 @@ export default function InvoicesPanel({
         <input
           value={invoiceAmount}
           onChange={(e) => setInvoiceAmount(e.target.value)}
-          placeholder="Base imponible"
+          placeholder={t.taxableBase}
+          type="number"
           style={input}
         />
 
         <input
           value={invoiceTaxAmount}
           onChange={(e) => setInvoiceTaxAmount(e.target.value)}
-          placeholder="IVA"
+          placeholder={t.vat}
+          type="number"
           style={input}
         />
 
@@ -137,29 +143,29 @@ export default function InvoicesPanel({
         </select>
 
         <button onClick={createInvoice} style={primaryButton}>
-          Crear factura
+          {t.createInvoice}
         </button>
-
-        <p>{invoiceMessage}</p>
       </div>
+
+      {invoiceMessage && <p style={{ marginBottom: 20 }}>{invoiceMessage}</p>}
 
       <table style={table}>
         <thead>
           <tr>
-            <th style={cell}>Cliente</th>
-            <th style={cell}>Factura</th>
-            <th style={cell}>Base</th>
-            <th style={cell}>IVA</th>
-            <th style={cell}>Total</th>
-            <th style={cell}>Vencimiento</th>
-            <th style={cell}>Estado</th>
+            <th style={cell}>{t.client}</th>
+            <th style={cell}>{t.invoice}</th>
+            <th style={cell}>{t.taxableBase}</th>
+            <th style={cell}>{t.vat}</th>
+            <th style={cell}>{t.total}</th>
+            <th style={cell}>{t.dueDate}</th>
+            <th style={cell}>{t.status}</th>
           </tr>
         </thead>
 
         <tbody>
           {invoices.map((i) => (
             <tr key={i.id}>
-              <td style={cell}>{i.clients?.name || "Sin cliente"}</td>
+              <td style={cell}>{i.clients?.name || "-"}</td>
               <td style={cell}>{i.invoice_number}</td>
               <td style={cell}>{formatCurrency(i.amount || 0)}</td>
               <td style={cell}>{formatCurrency(i.tax_amount || 0)}</td>

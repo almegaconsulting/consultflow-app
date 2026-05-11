@@ -1,10 +1,8 @@
-import ReactMarkdown from "react-markdown";
-
 import type { AIReport } from "../types/consultflow";
+import type { Translation } from "../i18n/translations";
 
 import {
   cell,
-  formBox,
   input,
   primaryButton,
   table,
@@ -20,7 +18,10 @@ type AIAssistantProps = {
   aiReports: AIReport[];
 
   askAI: () => void;
+
   exportPDF: () => void;
+
+  t: Translation;
 };
 
 export default function AIAssistant({
@@ -31,67 +32,58 @@ export default function AIAssistant({
   aiReports,
   askAI,
   exportPDF,
+  t,
 }: AIAssistantProps) {
   return (
     <>
-      <h1>ConsultFlow AI</h1>
+      <h1>{t.aiTitle}</h1>
 
-      <div style={formBox}>
+      <div
+        style={{
+          display: "flex",
+          gap: 10,
+          marginBottom: 20,
+        }}
+      >
         <input
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
-          placeholder="Pregunta..."
+          placeholder={t.questionPlaceholder}
           style={{
             ...input,
-            width: "60%",
+            flex: 1,
           }}
         />
 
         <button onClick={askAI} style={primaryButton}>
-          Preguntar
+          {t.ask}
+        </button>
+
+        <button onClick={exportPDF} style={primaryButton}>
+          {t.exportPDF}
         </button>
       </div>
 
-      {aiResponse && (
-        <>
-          <button
-            onClick={exportPDF}
-            style={{
-              marginBottom: 20,
-              padding: "10px 15px",
-              background: "#16a34a",
-              color: "white",
-              border: "none",
-              borderRadius: 6,
-              cursor: "pointer",
-            }}
-          >
-            Exportar PDF
-          </button>
+      <div
+        style={{
+          whiteSpace: "pre-wrap",
+          background: "#f3f4f6",
+          padding: 20,
+          borderRadius: 8,
+          marginBottom: 30,
+        }}
+      >
+        {aiResponse}
+      </div>
 
-          <div
-            style={{
-              padding: 20,
-              background: "white",
-              border: "1px solid #ddd",
-              borderRadius: 8,
-              lineHeight: 1.6,
-              marginBottom: 40,
-            }}
-          >
-            <ReactMarkdown>{aiResponse}</ReactMarkdown>
-          </div>
-        </>
-      )}
-
-      <h2>Histórico IA</h2>
+      <h2>{t.aiHistory}</h2>
 
       <table style={table}>
         <thead>
           <tr>
-            <th style={cell}>Fecha</th>
-            <th style={cell}>Pregunta</th>
-            <th style={cell}>Acción</th>
+            <th style={cell}>{t.date}</th>
+            <th style={cell}>{t.questionPlaceholder}</th>
+            <th style={cell}>{t.action}</th>
           </tr>
         </thead>
 
@@ -99,17 +91,19 @@ export default function AIAssistant({
           {aiReports.map((report) => (
             <tr key={report.id}>
               <td style={cell}>
-                {new Date(report.created_at).toLocaleString("es-ES")}
+                {new Date(report.created_at).toLocaleString()}
               </td>
 
               <td style={cell}>{report.question}</td>
 
               <td style={cell}>
                 <button
-                  onClick={() => setAiResponse(report.answer)}
+                  onClick={() =>
+                    setAiResponse(report.response)
+                  }
                   style={primaryButton}
                 >
-                  Abrir
+                  {t.open}
                 </button>
               </td>
             </tr>

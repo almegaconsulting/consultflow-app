@@ -1,4 +1,10 @@
-import type { Client, Consultant, Project } from "../types/consultflow";
+import type {
+  Client,
+  Consultant,
+  Project,
+} from "../types/consultflow";
+
+import type { Translation } from "../i18n/translations";
 
 import {
   cell,
@@ -29,13 +35,17 @@ type ProjectsPanelProps = {
   setProjectCostRate: (value: string) => void;
 
   createProject: () => void;
+
   projectMessage: string;
 
   formatCurrency: (value: number) => string;
+
   getProjectRevenue: (projectId: string) => number;
-  getProjectCost: (project: Project) => number;
-  getMargin: (project: Project) => number;
+  getProjectCost: (projectId: string) => number;
+  getMargin: (projectId: string) => number;
   getMarginPct: (project: Project) => number;
+
+  t: Translation;
 };
 
 export default function ProjectsPanel({
@@ -59,18 +69,19 @@ export default function ProjectsPanel({
   getProjectCost,
   getMargin,
   getMarginPct,
+  t,
 }: ProjectsPanelProps) {
   return (
     <>
-      <h1>Proyectos</h1>
+      <h1>{t.projects}</h1>
 
       <div style={formBox}>
-        <h3>Crear nuevo proyecto</h3>
+        <h3>{t.createNewProject}</h3>
 
         <input
           value={projectName}
           onChange={(e) => setProjectName(e.target.value)}
-          placeholder="Nombre del proyecto"
+          placeholder={t.projectName}
           style={input}
         />
 
@@ -79,7 +90,8 @@ export default function ProjectsPanel({
           onChange={(e) => setProjectClientId(e.target.value)}
           style={input}
         >
-          <option value="">Selecciona cliente</option>
+          <option value="">{t.selectClient}</option>
+
           {clients.map((client) => (
             <option key={client.id} value={client.id}>
               {client.name}
@@ -89,20 +101,11 @@ export default function ProjectsPanel({
 
         <select
           value={projectConsultantId}
-          onChange={(e) => {
-            const consultantId = e.target.value;
-
-            setProjectConsultantId(consultantId);
-
-            const selected = consultants.find((c) => c.id === consultantId);
-
-            if (selected?.cost_day_rate) {
-              setProjectCostRate(String(selected.cost_day_rate));
-            }
-          }}
+          onChange={(e) => setProjectConsultantId(e.target.value)}
           style={input}
         >
-          <option value="">Selecciona consultor</option>
+          <option value="">{t.selectConsultant}</option>
+
           {consultants.map((consultant) => (
             <option key={consultant.id} value={consultant.id}>
               {consultant.full_name}
@@ -113,55 +116,72 @@ export default function ProjectsPanel({
         <input
           value={projectSellRate}
           onChange={(e) => setProjectSellRate(e.target.value)}
-          placeholder="Tarifa venta día"
+          placeholder={t.sellDayRate}
+          type="number"
           style={input}
         />
 
         <input
           value={projectCostRate}
           onChange={(e) => setProjectCostRate(e.target.value)}
-          placeholder="Tarifa coste día"
+          placeholder={t.costDayRate}
+          type="number"
           style={input}
         />
 
         <button onClick={createProject} style={primaryButton}>
-          Crear proyecto
+          {t.createProject}
         </button>
-
-        <p>{projectMessage}</p>
       </div>
+
+      {projectMessage && (
+        <p style={{ marginBottom: 20 }}>{projectMessage}</p>
+      )}
 
       <table style={table}>
         <thead>
           <tr>
-            <th style={cell}>Cliente</th>
-            <th style={cell}>Proyecto</th>
-            <th style={cell}>Consultor</th>
-            <th style={cell}>Venta día</th>
-            <th style={cell}>Coste día</th>
-            <th style={cell}>Ingresos</th>
-            <th style={cell}>Coste</th>
-            <th style={cell}>Margen</th>
-            <th style={cell}>Margen %</th>
-            <th style={cell}>Estado</th>
+            <th style={cell}>{t.project}</th>
+            <th style={cell}>{t.client}</th>
+            <th style={cell}>{t.consultants}</th>
+            <th style={cell}>{t.revenue}</th>
+            <th style={cell}>{t.cost}</th>
+            <th style={cell}>{t.margin}</th>
+            <th style={cell}>{t.marginPct}</th>
+            <th style={cell}>{t.status}</th>
           </tr>
         </thead>
 
         <tbody>
-          {projects.map((p) => (
-            <tr key={p.id}>
-              <td style={cell}>{p.clients?.name || "Sin cliente"}</td>
-              <td style={cell}>{p.name}</td>
+          {projects.map((project) => (
+            <tr key={project.id}>
+              <td style={cell}>{project.name}</td>
+
               <td style={cell}>
-                {p.consultants?.full_name || "Sin consultor"}
+                {project.clients?.name || "-"}
               </td>
-              <td style={cell}>{formatCurrency(p.sell_day_rate || 0)}</td>
-              <td style={cell}>{formatCurrency(p.cost_day_rate || 0)}</td>
-              <td style={cell}>{formatCurrency(getProjectRevenue(p.id))}</td>
-              <td style={cell}>{formatCurrency(getProjectCost(p))}</td>
-              <td style={cell}>{formatCurrency(getMargin(p))}</td>
-              <td style={cell}>{getMarginPct(p).toFixed(2)}%</td>
-              <td style={cell}>{p.status}</td>
+
+              <td style={cell}>
+                {project.consultants?.full_name || "-"}
+              </td>
+
+              <td style={cell}>
+                {formatCurrency(getProjectRevenue(project.id))}
+              </td>
+
+              <td style={cell}>
+                {formatCurrency(getProjectCost(project.id))}
+              </td>
+
+              <td style={cell}>
+                {formatCurrency(getMargin(project.id))}
+              </td>
+
+              <td style={cell}>
+                {getMarginPct(project).toFixed(2)}%
+              </td>
+
+              <td style={cell}>{project.status}</td>
             </tr>
           ))}
         </tbody>

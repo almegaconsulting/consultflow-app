@@ -1,4 +1,10 @@
-import type { Consultant, Project, Timesheet } from "../types/consultflow";
+import type {
+  Consultant,
+  Project,
+  Timesheet,
+} from "../types/consultflow";
+
+import type { Translation } from "../i18n/translations";
 
 import {
   cell,
@@ -32,9 +38,15 @@ type TimesheetsPanelProps = {
   setTimesheetStatus: (value: string) => void;
 
   createTimesheet: () => void;
-  updateTimesheetStatus: (timesheetId: string, newStatus: string) => void;
+
+  updateTimesheetStatus: (
+    timesheetId: string,
+    newStatus: string
+  ) => void;
 
   timesheetMessage: string;
+
+  t: Translation;
 };
 
 export default function TimesheetsPanel({
@@ -56,29 +68,22 @@ export default function TimesheetsPanel({
   createTimesheet,
   updateTimesheetStatus,
   timesheetMessage,
+  t,
 }: TimesheetsPanelProps) {
   return (
     <>
-      <h1>Timesheets</h1>
+      <h1>{t.timesheets}</h1>
 
       <div style={formBox}>
-        <h3>Crear nuevo timesheet</h3>
+        <h3>{t.createNewTimesheet}</h3>
 
         <select
           value={timesheetProjectId}
-          onChange={(e) => {
-            const projectId = e.target.value;
-            setTimesheetProjectId(projectId);
-
-            const selectedProject = projects.find((p) => p.id === projectId);
-
-            if (selectedProject?.consultant_id) {
-              setTimesheetConsultantId(selectedProject.consultant_id);
-            }
-          }}
+          onChange={(e) => setTimesheetProjectId(e.target.value)}
           style={input}
         >
-          <option value="">Selecciona proyecto</option>
+          <option value="">{t.selectProject}</option>
+
           {projects.map((project) => (
             <option key={project.id} value={project.id}>
               {project.name}
@@ -91,7 +96,10 @@ export default function TimesheetsPanel({
           onChange={(e) => setTimesheetConsultantId(e.target.value)}
           style={input}
         >
-          <option value="">Selecciona consultor</option>
+          <option value="">
+            {t.selectConsultantShort}
+          </option>
+
           {consultants.map((consultant) => (
             <option key={consultant.id} value={consultant.id}>
               {consultant.full_name}
@@ -109,14 +117,16 @@ export default function TimesheetsPanel({
         <input
           value={timesheetHours}
           onChange={(e) => setTimesheetHours(e.target.value)}
-          placeholder="Horas"
+          placeholder={t.workedHours}
+          type="number"
           style={input}
         />
 
         <input
           value={timesheetDays}
           onChange={(e) => setTimesheetDays(e.target.value)}
-          placeholder="Días facturables"
+          placeholder={t.billableDays}
+          type="number"
           style={input}
         />
 
@@ -128,63 +138,72 @@ export default function TimesheetsPanel({
           <option value="draft">draft</option>
           <option value="submitted">submitted</option>
           <option value="approved">approved</option>
-          <option value="rejected">rejected</option>
-          <option value="invoiced">invoiced</option>
         </select>
 
         <button onClick={createTimesheet} style={primaryButton}>
-          Crear timesheet
+          {t.createTimesheet}
         </button>
-
-        <p>{timesheetMessage}</p>
       </div>
+
+      {timesheetMessage && (
+        <p style={{ marginBottom: 20 }}>
+          {timesheetMessage}
+        </p>
+      )}
 
       <table style={table}>
         <thead>
           <tr>
-            <th style={cell}>Fecha</th>
-            <th style={cell}>Cliente</th>
-            <th style={cell}>Proyecto</th>
-            <th style={cell}>Consultor</th>
-            <th style={cell}>Horas</th>
-            <th style={cell}>Días</th>
-            <th style={cell}>Estado</th>
+            <th style={cell}>{t.project}</th>
+            <th style={cell}>{t.consultant}</th>
+            <th style={cell}>{t.date}</th>
+            <th style={cell}>{t.workedHours}</th>
+            <th style={cell}>{t.billableDays}</th>
+            <th style={cell}>{t.status}</th>
           </tr>
         </thead>
 
         <tbody>
-          {timesheets.map((t) => (
-            <tr key={t.id}>
-              <td style={cell}>{t.work_date}</td>
-              <td style={cell}>{t.clients?.name || "Sin cliente"}</td>
-              <td style={cell}>{t.projects?.name || "Sin proyecto"}</td>
-              <td style={cell}>{t.consultants?.full_name || "Sin consultor"}</td>
-              <td style={cell}>{t.hours}</td>
-              <td style={cell}>{t.billable_days}</td>
+          {timesheets.map((timesheet) => (
+            <tr key={timesheet.id}>
+              <td style={cell}>
+                {timesheet.projects?.name || "-"}
+              </td>
+
+              <td style={cell}>
+                {timesheet.consultants?.full_name || "-"}
+              </td>
+
+              <td style={cell}>
+                {timesheet.work_date}
+              </td>
+
+              <td style={cell}>
+                {timesheet.hours}
+              </td>
+
+              <td style={cell}>
+                {timesheet.billable_days}
+              </td>
+
               <td style={cell}>
                 <select
-                  value={t.status}
+                  value={timesheet.status}
                   onChange={(e) =>
-                    updateTimesheetStatus(t.id, e.target.value)
+                    updateTimesheetStatus(
+                      timesheet.id,
+                      e.target.value
+                    )
                   }
-                  style={{
-                    padding: 6,
-                    fontWeight: "bold",
-                    color:
-                      t.status === "approved"
-                        ? "green"
-                        : t.status === "submitted"
-                        ? "orange"
-                        : t.status === "rejected"
-                        ? "red"
-                        : "black",
-                  }}
+                  style={input}
                 >
                   <option value="draft">draft</option>
-                  <option value="submitted">submitted</option>
-                  <option value="approved">approved</option>
-                  <option value="rejected">rejected</option>
-                  <option value="invoiced">invoiced</option>
+                  <option value="submitted">
+                    submitted
+                  </option>
+                  <option value="approved">
+                    approved
+                  </option>
                 </select>
               </td>
             </tr>

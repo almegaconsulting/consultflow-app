@@ -1,5 +1,7 @@
 import type { Project, PurchaseOrder } from "../types/consultflow";
 
+import type { Translation } from "../i18n/translations";
+
 import {
   cell,
   formBox,
@@ -31,11 +33,15 @@ type POsPanelProps = {
   setPoStatus: (value: string) => void;
 
   createPurchaseOrder: () => void;
+
   poMessage: string;
 
   formatCurrency: (value: number) => string;
+
   getConsumedAmount: (poId: string) => number;
   getRemainingAmount: (po: PurchaseOrder) => number;
+
+  t: Translation;
 };
 
 export default function POsPanel({
@@ -58,18 +64,19 @@ export default function POsPanel({
   formatCurrency,
   getConsumedAmount,
   getRemainingAmount,
+  t,
 }: POsPanelProps) {
   return (
     <>
-      <h1>POs</h1>
+      <h1>{t.purchaseOrders}</h1>
 
       <div style={formBox}>
-        <h3>Crear nueva PO</h3>
+        <h3>{t.createNewPO}</h3>
 
         <input
           value={poNumber}
           onChange={(e) => setPoNumber(e.target.value)}
-          placeholder="Número PO"
+          placeholder={t.poNumber}
           style={input}
         />
 
@@ -78,7 +85,8 @@ export default function POsPanel({
           onChange={(e) => setPoProjectId(e.target.value)}
           style={input}
         >
-          <option value="">Selecciona proyecto</option>
+          <option value="">{t.selectProject}</option>
+
           {projects.map((project) => (
             <option key={project.id} value={project.id}>
               {project.name}
@@ -89,7 +97,8 @@ export default function POsPanel({
         <input
           value={poTotalAmount}
           onChange={(e) => setPoTotalAmount(e.target.value)}
-          placeholder="Importe total PO"
+          placeholder={t.totalPOAmount}
+          type="number"
           style={input}
         />
 
@@ -113,44 +122,53 @@ export default function POsPanel({
           style={input}
         >
           <option value="active">active</option>
-          <option value="pending">pending</option>
-          <option value="almost_used">almost_used</option>
           <option value="closed">closed</option>
         </select>
 
         <button onClick={createPurchaseOrder} style={primaryButton}>
-          Crear PO
+          {t.createPO}
         </button>
-
-        <p>{poMessage}</p>
       </div>
+
+      {poMessage && <p style={{ marginBottom: 20 }}>{poMessage}</p>}
 
       <table style={table}>
         <thead>
           <tr>
-            <th style={cell}>Cliente</th>
-            <th style={cell}>Proyecto</th>
-            <th style={cell}>PO</th>
-            <th style={cell}>Total</th>
-            <th style={cell}>Consumido</th>
-            <th style={cell}>Restante</th>
-            <th style={cell}>Inicio</th>
-            <th style={cell}>Fin</th>
-            <th style={cell}>Estado</th>
+            <th style={cell}>{t.poNumber}</th>
+            <th style={cell}>{t.project}</th>
+            <th style={cell}>{t.total}</th>
+            <th style={cell}>{t.consumed}</th>
+            <th style={cell}>{t.remaining}</th>
+            <th style={cell}>{t.startDate}</th>
+            <th style={cell}>{t.endDate}</th>
+            <th style={cell}>{t.status}</th>
           </tr>
         </thead>
 
         <tbody>
           {purchaseOrders.map((po) => (
             <tr key={po.id}>
-              <td style={cell}>{po.clients?.name || "Sin cliente"}</td>
-              <td style={cell}>{po.projects?.name || "Sin proyecto"}</td>
               <td style={cell}>{po.po_number}</td>
-              <td style={cell}>{formatCurrency(po.total_amount)}</td>
-              <td style={cell}>{formatCurrency(getConsumedAmount(po.id))}</td>
-              <td style={cell}>{formatCurrency(getRemainingAmount(po))}</td>
+
+              <td style={cell}>{po.projects?.name || "-"}</td>
+
+              <td style={cell}>
+                {formatCurrency(po.total_amount || 0)}
+              </td>
+
+              <td style={cell}>
+                {formatCurrency(getConsumedAmount(po.id))}
+              </td>
+
+              <td style={cell}>
+                {formatCurrency(getRemainingAmount(po))}
+              </td>
+
               <td style={cell}>{po.start_date || "-"}</td>
+
               <td style={cell}>{po.end_date || "-"}</td>
+
               <td style={cell}>{po.status}</td>
             </tr>
           ))}
